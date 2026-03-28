@@ -27,7 +27,7 @@
 
 static i2c_master_bus_handle_t bus_handle;
 static i2c_master_dev_handle_t dev_handle;
-// static char TAG[] = "UART_I2C";
+static char TAG[] = "UART_I2C";
 
 void uart_init(void);
 void i2c_init(void);
