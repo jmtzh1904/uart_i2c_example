@@ -109,6 +109,5 @@ esp_err_t send_receive_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle, uin
     if (ret == ESP_OK){
         *dato = (buffer[0] << 8) | buffer[1];
     }
-
     return ret;
 }
