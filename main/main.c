@@ -2,14 +2,8 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
-#include "driver/uart.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
-
-#define UART_PORT UART_NUM_1
-#define UART_TX GPIO_NUM_10 // RX del convertidor USB to TTL
-#define UART_RX GPIO_NUM_9  // TX del convertidor USB to TTL
 
 #define I2C_SCL GPIO_NUM_2  
 #define I2C_SDA GPIO_NUM_3
@@ -27,51 +21,29 @@
 
 static i2c_master_bus_handle_t bus_handle;
 static i2c_master_dev_handle_t dev_handle;
-static char TAG[] = "UART_I2C";
 
-void uart_init(void);
+static const char *TAG = "UART_TEST";
+
 void i2c_init(void);
 esp_err_t send_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle);
-esp_err_t send_receive_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle, uint16_t* dato);
+esp_err_t send_receive_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle, float* dato);
 
-void app_main(void)
-{
 
-    uart_init();
-    char *test_str = "This is a test \n \r";
+void app_main(void){
+    
+    ESP_LOGI(TAG, "Inicializando I2C");
     i2c_init();
+
     ESP_ERROR_CHECK(send_cmd(BH1750_CMD_POWER_ON, &dev_handle));
 
-
-    uint16_t lux;
-    while (1)
-    {
-        // Enviamos comando al bh1750 y guardamos su respuesta en lux
+    float lux;
+    while(1){
         ESP_ERROR_CHECK(send_receive_cmd(BH1750_CMD_CONT_HR, &dev_handle, &lux));
-        ESP_ERROR_CHECK(uart_write_bytes(UART_PORT, test_str, sizeof(test_str)));
-        ESP_ERROR_CHECK(uart_write_bytes(UART_PORT, &lux, 2));
+        ESP_LOGI(TAG, "EL nivel de lux: %.2f", lux);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    
 }
 
-void uart_init(void){
-    static QueueHandle_t uart_queue;
-    const int uart_buffer_size = (1024 * 2);
-    ESP_ERROR_CHECK(uart_driver_install(UART_PORT,uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0));
-    
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 122,
-    };
-
-    ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_PORT, UART_TX, UART_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-}
 
 void i2c_init(void){
 
@@ -92,22 +64,22 @@ void i2c_init(void){
         .scl_wait_us = 0,
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle));
-    
-
 }
 
 esp_err_t send_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle){
     return i2c_master_transmit(*dev_handle, &cmd, 1, -1);
 }
 
-esp_err_t send_receive_cmd(uint8_t cmd, i2c_master_dev_handle_t* dev_handle, uint16_t* dato){
+esp_err_t send_receive_cmd(const uint8_t cmd, i2c_master_dev_handle_t* dev_handle, float* dato){
 
     esp_err_t ret;
     uint8_t buffer[2];
     
     ret = i2c_master_transmit_receive(*dev_handle, &cmd, 1, buffer, 2, -1);
     if (ret == ESP_OK){
-        *dato = (buffer[0] << 8) | buffer[1];
+        uint16_t raw_value = (buffer[0] << 8) | buffer[1];
+        *dato = raw_value / 1.2f;
     }
+    ESP_LOGI(TAG, "El primer byte es %d y el segundo %d", buffer[0], buffer[1]);
     return ret;
 }
